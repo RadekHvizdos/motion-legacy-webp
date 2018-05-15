@@ -985,7 +985,7 @@ void put_picture_fd(struct context *cnt, FILE *picture, unsigned char *image, in
             if (cnt->imgs.picture_type == IMAGE_TYPE_WEBP)
                 put_webp_yuv420p_file(picture, image, cnt->imgs.width, cnt->imgs.height, quality);
             if (cnt->imgs.picture_type == IMAGE_TYPE_JPEG)
-                put_jpeg_yuv420p_file(picture, image, cnt->imgs.width, cnt->imgs.height, quality, cnt, &(cnt->current_image->timestamp_tv), &(cnt->current_image->location));
+                put_jpeg_yuv420p_file(picture, image, cnt->imgs.width, cnt->imgs.height, quality, cnt, &(cnt->current_image->timestamp_tm), &(cnt->current_image->location));
             break;
         case VIDEO_PALETTE_GREY:
             put_jpeg_grey_file(picture, image, cnt->imgs.width, cnt->imgs.height, quality);
@@ -1250,12 +1250,8 @@ void preview_save(struct context *cnt)
         /* Use filename of movie i.o. jpeg_filename when set to 'preview'. */
         use_imagepath = strcmp(cnt->conf.imagepath, "preview");
 
-#ifdef HAVE_FFMPEG
-        if ((cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe))
-            && !use_imagepath) {
-#else
+
         if ((cnt->conf.useextpipe && cnt->extpipe) && !use_imagepath) {
-#endif
             if (cnt->conf.useextpipe && cnt->extpipe) {
                 basename_len = strlen(cnt->extpipefilename) + 1;
                 strncpy(previewname, cnt->extpipefilename, basename_len);

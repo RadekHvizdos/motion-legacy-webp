@@ -108,7 +108,6 @@ add_executable(motion
 				conf.c
 				draw.c
 				event.c
-				ffmpeg.c
 				filecam.c
 				jpegutils.c
 				logger.c

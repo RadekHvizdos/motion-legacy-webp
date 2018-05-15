@@ -6,7 +6,6 @@
  *    See also the file 'COPYING'.
  *
  */
-#include "ffmpeg.h"
 #include "motion.h"
 
 #if (defined(BSD) && !defined(PWCBSD)) 
@@ -585,11 +584,7 @@ static void process_image_ring(struct context *cnt, unsigned int max_images)
              * Only if we are recording videos ( ffmpeg or extenal pipe )         
              */
             if ((cnt->imgs.image_ring[cnt->imgs.image_ring_out].shot == 0) &&
-#ifdef HAVE_FFMPEG
-                (cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe))) {
-#else
                 (cnt->conf.useextpipe && cnt->extpipe)) {
-#endif
                 /* 
                  * movie_last_shoot is -1 when file is created,
                  * we don't know how many frames there is in first sec 
@@ -1417,15 +1412,6 @@ static void *motion_loop(void *arg)
                 }
                 cnt->missing_frame_counter = 0;
 
-#ifdef HAVE_FFMPEG
-                /* Deinterlace the image with ffmpeg, before the image is modified. */
-                if (cnt->conf.ffmpeg_deinterlace) {
-                    ffmpeg_deinterlace(cnt->current_image->image, cnt->imgs.width, cnt->imgs.height);
-                    if (cnt->current_image->secondary_image && cnt->imgs.secondary_type == SECONDARY_TYPE_RAW) {
-                        ffmpeg_deinterlace(cnt->current_image->secondary_image, cnt->imgs.secondary_width, cnt->imgs.secondary_height);
-                    }
-                }
-#endif
 
                 /* 
                  * Save the newly captured still virgin image to a buffer
@@ -1815,11 +1801,7 @@ static void *motion_loop(void *arg)
             if (cnt->conf.emulate_motion && (cnt->startup_frames == 0)) {
                 cnt->detecting_motion = 1;
                 MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, "%s: Emulating motion");
-#ifdef HAVE_FFMPEG
-                if (cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe)) {
-#else
                 if (cnt->conf.useextpipe && cnt->extpipe) {
-#endif
                     /* Setup the postcap counter */
                     cnt->postcap = cnt->conf.post_capture;
                     MOTION_LOG(DBG, TYPE_ALL, NO_ERRNO, "%s: (Em) Init post capture %d", 
@@ -1864,11 +1846,7 @@ static void *motion_loop(void *arg)
                         cnt->imgs.image_ring[i].flags |= IMAGE_SAVE;
                     
                 } else if ((cnt->postcap) && 
-#ifdef HAVE_FFMPEG
-                           (cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe))) {
-#else
                            (cnt->conf.useextpipe && cnt->extpipe)) {			
-#endif 
                    /* we have motion in this frame, but not enought frames for trigger. Check postcap */
                     cnt->current_image->flags |= (IMAGE_POSTCAP | IMAGE_SAVE);
                     cnt->postcap--;
@@ -1881,11 +1859,7 @@ static void *motion_loop(void *arg)
                 /* Always call motion_detected when we have a motion image */
                 motion_detected(cnt, cnt->video_dev, cnt->current_image);
             } else if ((cnt->postcap) && 
-#ifdef HAVE_FFMPEG
-                      (cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe))) {
-#else
                       (cnt->conf.useextpipe && cnt->extpipe)) {	
-#endif
                 /* No motion, doing postcap */
                 cnt->current_image->flags |= (IMAGE_POSTCAP | IMAGE_SAVE);
                 cnt->postcap--;
@@ -2047,76 +2021,6 @@ static void *motion_loop(void *arg)
 
     /***** MOTION LOOP - TIMELAPSE FEATURE SECTION *****/
 
-#ifdef HAVE_FFMPEG
-
-        if (cnt->conf.timelapse) {
-
-            /* 
-             * Check to see if we should start a new timelapse file. We start one when
-             * we are on the first shot, and and the seconds are zero. We must use the seconds
-             * to prevent the timelapse file from getting reset multiple times during the minute.
-             */
-            if (cnt->current_image->timestamp_tm.tm_min == 0 &&
-                (time_current_frame % 60 < time_last_frame % 60) &&
-                cnt->shots == 0) {
-
-                if (strcasecmp(cnt->conf.timelapse_mode, "manual") == 0) {
-                    ;/* No action */
-
-                /* If we are daily, raise timelapseend event at midnight */
-                } else if (strcasecmp(cnt->conf.timelapse_mode, "daily") == 0) {
-                    if (cnt->current_image->timestamp_tm.tm_hour == 0)
-                        event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, &cnt->current_image->timestamp_tm);
-
-                /* handle the hourly case */
-                } else if (strcasecmp(cnt->conf.timelapse_mode, "hourly") == 0) {
-                    event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, &cnt->current_image->timestamp_tm);
-                
-                /* If we are weekly-sunday, raise timelapseend event at midnight on sunday */    
-                } else if (strcasecmp(cnt->conf.timelapse_mode, "weekly-sunday") == 0) {
-                    if (cnt->current_image->timestamp_tm.tm_wday == 0 && 
-                        cnt->current_image->timestamp_tm.tm_hour == 0)
-                        event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, 
-                              &cnt->current_image->timestamp_tm);
-                /* If we are weekly-monday, raise timelapseend event at midnight on monday */    
-                } else if (strcasecmp(cnt->conf.timelapse_mode, "weekly-monday") == 0) {
-                    if (cnt->current_image->timestamp_tm.tm_wday == 1 && 
-                        cnt->current_image->timestamp_tm.tm_hour == 0)
-                        event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, 
-                              &cnt->current_image->timestamp_tm);
-                /* If we are monthly, raise timelapseend event at midnight on first day of month */    
-                } else if (strcasecmp(cnt->conf.timelapse_mode, "monthly") == 0) {
-                    if (cnt->current_image->timestamp_tm.tm_mday == 1 && 
-                        cnt->current_image->timestamp_tm.tm_hour == 0)
-                        event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, 
-                              &cnt->current_image->timestamp_tm);
-                /* If invalid we report in syslog once and continue in manual mode */    
-                } else {
-                    MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: Invalid timelapse_mode argument '%s'",
-                               cnt->conf.timelapse_mode);
-                    MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "%:s Defaulting to manual timelapse mode"); 
-                    conf_cmdparse(&cnt, (char *)"ffmpeg_timelapse_mode",(char *)"manual");
-                }
-            }
-
-            /* 
-             * If ffmpeg timelapse is enabled and time since epoch MOD ffmpeg_timelaps = 0
-             * add a timelapse frame to the timelapse movie.
-             */
-            if (cnt->shots == 0 && time_current_frame % cnt->conf.timelapse <= 
-                time_last_frame % cnt->conf.timelapse)
-                event(cnt, EVENT_TIMELAPSE, NULL, NULL, cnt->current_image,
-                      &cnt->current_image->timestamp_tm);
-        } else if (cnt->ffmpeg_timelapse) {
-        /* 
-         * If timelapse movie is in progress but conf.timelapse is zero then close timelapse file
-         * This is an important feature that allows manual roll-over of timelapse file using the http
-         * remote control via a cron job.
-         */
-            event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, cnt->currenttime_tm);
-        }
-
-#endif /* HAVE_FFMPEG */
 
         time_last_frame = time_current_frame;
 
@@ -2739,13 +2643,6 @@ int main (int argc, char **argv)
 
     motion_startup(1, argc, argv);
 
-#ifdef HAVE_FFMPEG
-    /* 
-     * FFMpeg initialization is only performed if FFMpeg support was found
-     * and not disabled during the configure phase.
-     */
-    ffmpeg_init();
-#endif /* HAVE_FFMPEG */
 
     /* 
      * In setup mode, Motion is very communicative towards the user, which

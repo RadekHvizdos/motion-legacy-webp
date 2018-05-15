@@ -459,14 +459,6 @@ struct context {
     char extpipefilename[PATH_MAX];
     int movie_last_shot;
 
-#ifdef HAVE_FFMPEG
-    struct ffmpeg *ffmpeg_output;
-    struct ffmpeg *ffmpeg_output_debug;
-    struct ffmpeg *ffmpeg_timelapse;
-    struct ffmpeg *ffmpeg_smartmask;
-    char timelapsefilename[PATH_MAX];
-    char motionfilename[PATH_MAX];
-#endif
 };
 
 extern pthread_mutex_t global_lock;
