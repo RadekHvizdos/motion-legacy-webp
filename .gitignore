@@ -1,0 +1,5 @@
+*.log
+.svn/
+*.o
+cmakebuild
+
