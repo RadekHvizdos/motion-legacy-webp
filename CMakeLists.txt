@@ -153,6 +153,8 @@ target_link_libraries(motion
 						mmal_core
 						mmal_util
 						mmal_vc_client
+						webp
+						webpmux
 						-Xlinker -rpath-link=${ROOTFSPATH}/usr/lib/arm-linux-gnueabihf -Xlinker -rpath-link=${ROOTFSPATH}/lib/arm-linux-gnueabihf
 						)
 
